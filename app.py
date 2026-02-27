@@ -20,7 +20,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB
 # Correction automatique de l'URL pour SQLAlchemy (PostgreSQL Render)
 uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
 if uri and uri.startswith("postgres://"):
-    uri = uri.replace("postgres://", 1) # Correction auto gérée par Render
+    uri = uri.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -43,7 +43,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nom_complet = db.Column(db.String(150), nullable=False) 
     email = db.Column(db.String(150), unique=True, nullable=False) 
-    password = db.Column(db.String(500), nullable=False) # Supporte les hachages longs
+    password = db.Column(db.String(500), nullable=False) 
     otp_secret = db.Column(db.String(64)) 
     
 class BusinessPlan(db.Model):
@@ -75,6 +75,8 @@ def register():
             return redirect(url_for('register'))
             
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
+        
+        # Ligne fusionnée : utilise bien 'nom_complet' pour correspondre au modèle corrigé
         new_user = User(nom_complet=nom, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
         
         db.session.add(new_user)
@@ -153,18 +155,34 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- INITIALISATION ET LANCEMENT (FORCE MIGRATION) ---
+# --- INITIALISATION ET LANCEMENT (STRATÉGIE FORCE-PUSH) ---
 
 def setup_database():
-    """Mise à jour forcée des colonnes pour ProFin-AI sans casser les autres apps."""
+    """Version Force-Push pour corriger l'erreur UndefinedColumn sur Render."""
     with app.app_context():
         try:
-            print("Vérification approfondie de la structure dorknet_db...")
+            print("Synchronisation forcée de la structure de la table 'user'...")
+            
+            # 1. Création initiale (si la table n'existe pas du tout)
             db.create_all() 
             
-            # Correction manuelle pour PostgreSQL : création et élargissement
+            # 2. On tente de renommer 'nom' en 'nom_complet' si l'ancienne version existe
+            try:
+                db.session.execute(db.text("ALTER TABLE \"user\" RENAME COLUMN nom TO nom_complet;"))
+                db.session.commit()
+                print("Colonne 'nom' renommée avec succès.")
+            except Exception:
+                db.session.rollback()
+            
+            # 3. On ajoute 'nom_complet' si elle n'existe toujours pas
+            try:
+                db.session.execute(db.text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS nom_complet VARCHAR(150);"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+            # 4. Mise à jour des types de données pour supporter le hachage long
             commands = [
-                "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS nom_complet VARCHAR(150);",
                 "ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);",
                 "ALTER TABLE \"user\" ALTER COLUMN email TYPE VARCHAR(150);",
                 "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);"
@@ -176,11 +194,11 @@ def setup_database():
                     db.session.commit()
                 except Exception as e:
                     db.session.rollback()
-                    print(f"Commande ignorée ou déjà faite : {cmd}")
+                    print(f"Mise à jour ignorée : {e}")
 
-            print("Succès : La table 'user' est maintenant compatible avec ProFin-AI.")
+            print("Base de données ProFin-AI synchronisée et prête.")
         except Exception as e:
-            print(f"Erreur d'initialisation : {e}")
+            print(f"ERREUR CRITIQUE DATABASE : {e}")
 
 if __name__ == '__main__':
     setup_database()
