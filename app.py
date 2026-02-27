@@ -32,7 +32,7 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Config Email
+# Configuration Email (SMTP)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -44,7 +44,7 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES ---
+# --- MODÈLES DE DONNÉES ---
 class User(db.Model):
     __tablename__ = 'user' 
     id = db.Column(db.Integer, primary_key=True)
@@ -64,7 +64,7 @@ class BusinessPlan(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- FONCTION UTILITAIRE : GÉNÉRATION PDF ---
+# --- UTILITAIRE : GÉNÉRATION DU RAPPORT PDF ---
 def generate_pdf_report(plan, owner_name):
     if plan.score_bancabilite >= 80:
         statut, conseils = "EXCELLENT", "1. Prêt pour levée de fonds.\n2. Préparez la Due Diligence.\n3. Optimisez le pitch deck."
@@ -75,7 +75,7 @@ def generate_pdf_report(plan, owner_name):
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_fill_color(30, 60, 114)
+    pdf.set_fill_color(30, 60, 114) # Bleu DorkNet
     pdf.rect(0, 0, 210, 40, 'F')
     pdf.set_font("Arial", 'B', 24); pdf.set_text_color(255, 255, 255)
     pdf.cell(190, 15, "DORKNET XCHANGE", ln=True, align='C')
@@ -97,7 +97,7 @@ def generate_pdf_report(plan, owner_name):
     
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- ROUTES ---
+# --- ROUTES AUTHENTIFICATION ---
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
@@ -107,6 +107,7 @@ def register():
         hashed_pw = generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')
         new_user = User(nom=request.form.get('nom'), email=request.form.get('email'), password=hashed_pw, otp_secret=pyotp.random_base32())
         db.session.add(new_user); db.session.commit()
+        flash('Compte créé avec succès !', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -117,6 +118,7 @@ def login():
         if user and check_password_hash(user.password, request.form.get('password')):
             session['temp_user_id'] = user.id
             return redirect(url_for('verify_2fa'))
+        flash('Identifiants incorrects', 'danger')
     return render_template('login.html')
 
 @app.route('/verify-2fa', methods=['GET', 'POST'])
@@ -127,18 +129,43 @@ def verify_2fa():
         if pyotp.TOTP(user.otp_secret, interval=300).verify(request.form.get('otp')):
             login_user(user); session.pop('temp_user_id')
             return redirect(url_for('dashboard'))
+        flash('Code OTP invalide', 'danger')
     return render_template('verify_2fa.html')
 
+# --- ROUTES UTILISATEURS & NAVIGATION ---
 @app.route('/dashboard')
 @login_required
 def dashboard():
     plans = BusinessPlan.query.filter_by(user_id=current_user.id).order_by(BusinessPlan.date_scan.desc()).all()
     return render_template('dashboard.html', name=current_user.nom, plans=plans)
 
+@app.route('/profil')
+@login_required
+def profil():
+    total_plans = BusinessPlan.query.filter_by(user_id=current_user.id).count()
+    return render_template('profil.html', user=current_user, total=total_plans)
+
+@app.route('/mes-documents')
+@login_required
+def mes_documents():
+    search_query = request.args.get('search', '')
+    query = BusinessPlan.query.filter_by(user_id=current_user.id)
+    if search_query:
+        query = query.filter(BusinessPlan.analyse_ia.icontains(search_query))
+    plans = query.order_by(BusinessPlan.date_scan.desc()).all()
+    return render_template('documents.html', plans=plans, search_query=search_query)
+
+@app.route('/donner')
+@login_required
+def donner():
+    return render_template('donner.html')
+
+# --- ROUTES ACTIONS TECHNIQUES ---
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload_file():
     file = request.files['file']
+    if not file: return jsonify({"error": "Fichier manquant"}), 400
     pdf_reader = pypdf.PdfReader(io.BytesIO(file.read()))
     text = "".join([p.extract_text() for p in pdf_reader.pages[:5]])
     score, analyse = ia.analyser(text)
@@ -160,7 +187,6 @@ def share_report():
     data = request.get_json()
     plan = BusinessPlan.query.get_or_404(data.get('plan_id'))
     if plan.user_id != current_user.id: return jsonify({"error": "Interdit"}), 403
-    
     try:
         pdf_content = generate_pdf_report(plan, current_user.nom)
         msg = Message(subject=f"DorkNet Xchange : Projet de {current_user.nom}", sender=app.config['MAIL_USERNAME'], recipients=[data.get('email')])
@@ -171,10 +197,25 @@ def share_report():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/delete-plan/<int:plan_id>', methods=['POST'])
+@login_required
+def delete_plan(plan_id):
+    plan = BusinessPlan.query.get_or_404(plan_id)
+    if plan.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Action non autorisée"}), 403
+    try:
+        db.session.delete(plan)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/logout')
 def logout():
     logout_user(); return redirect(url_for('login'))
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
