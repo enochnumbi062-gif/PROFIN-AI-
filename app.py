@@ -37,7 +37,6 @@ login_manager.login_view = 'login'
 
 # --- MODÈLES DE DONNÉES ---
 class User(db.Model):
-    # On garde 'user' pour que la route de réparation puisse modifier la table existante
     __tablename__ = 'user' 
     
     id = db.Column(db.Integer, primary_key=True)
@@ -62,17 +61,18 @@ class BusinessPlan(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- ROUTE DE RÉPARATION CHIRURGICALE ---
-@app.route('/force-repair-db')
-def force_repair_db():
+# --- ROUTE BULLDOZER (POUR FORCER LA CRÉATION DES COLONNES) ---
+@app.route('/bulldozer-repair')
+def bulldozer_repair():
     try:
         from sqlalchemy import text
-        # Ajout des colonnes si elles manquent dans la table existante
-        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS nom VARCHAR(150);'))
-        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);'))
-        db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);'))
+        # 1. On supprime la table 'user' qui pose problème (image 54153.png)
+        db.session.execute(text('DROP TABLE IF EXISTS "user" CASCADE;'))
         db.session.commit()
-        return "<h1>✅ RÉPARATION RÉUSSIE !</h1><p>La table 'user' est à jour. Testez l'inscription maintenant.</p>"
+        
+        # 2. On recrée tout proprement avec SQLAlchemy
+        db.create_all()
+        return "<h1>🚀 BULLDOZER RÉUSSI !</h1><p>La table 'user' a été reconstruite. Tentez l'inscription maintenant.</p>"
     except Exception as e:
         db.session.rollback()
         return f"<h1>❌ ÉCHEC</h1><p>Erreur : {str(e)}</p>"
@@ -95,11 +95,11 @@ def register():
             )
             db.session.add(new_user)
             db.session.commit()
-            flash('Succès ! Connectez-vous.', 'success')
+            flash('Compte créé ! Connectez-vous.', 'success')
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
-            flash(f"Erreur : {str(e)}", 'danger')
+            flash(f"Erreur d'inscription : {str(e)}", 'danger')
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -109,10 +109,11 @@ def login():
         if user and check_password_hash(user.password, request.form.get('password')):
             totp = pyotp.TOTP(user.otp_secret, interval=300)
             msg = Message('Code DorkNet', sender=app.config['MAIL_USERNAME'], recipients=[user.email])
-            msg.body = f"Code : {totp.now()}"
+            msg.body = f"Bonjour {user.nom}, votre code est : {totp.now()}"
             mail.send(msg)
             session['temp_user_id'] = user.id
             return redirect(url_for('verify_2fa'))
+        flash('Identifiants incorrects.', 'danger')
     return render_template('login.html')
 
 @app.route('/verify-2fa', methods=['GET', 'POST'])
@@ -122,13 +123,20 @@ def verify_2fa():
         user = User.query.get(session['temp_user_id'])
         if pyotp.TOTP(user.otp_secret, interval=300).verify(request.form.get('otp')):
             login_user(user)
+            session.pop('temp_user_id')
             return redirect(url_for('dashboard'))
+        flash('Code OTP invalide.', 'danger')
     return render_template('verify_2fa.html')
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
     return render_template('dashboard.html', name=current_user.nom)
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 # --- LANCEMENT ---
 if __name__ == '__main__':
