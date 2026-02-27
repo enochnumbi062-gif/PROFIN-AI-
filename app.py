@@ -23,7 +23,7 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configuration Email
+# Configuration Email (Gardée pour le futur, mais contournée pour l'instant)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -38,7 +38,6 @@ login_manager.login_view = 'login'
 # --- MODÈLES DE DONNÉES ---
 class User(db.Model):
     __tablename__ = 'user' 
-    
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(150), nullable=False) 
     email = db.Column(db.String(150), unique=True, nullable=False) 
@@ -61,21 +60,18 @@ class BusinessPlan(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- ROUTE BULLDOZER (POUR FORCER LA CRÉATION DES COLONNES) ---
+# --- ROUTE BULLDOZER (Toujours là au cas où) ---
 @app.route('/bulldozer-repair')
 def bulldozer_repair():
     try:
         from sqlalchemy import text
-        # 1. On supprime la table 'user' qui pose problème (image 54153.png)
         db.session.execute(text('DROP TABLE IF EXISTS "user" CASCADE;'))
         db.session.commit()
-        
-        # 2. On recrée tout proprement avec SQLAlchemy
         db.create_all()
-        return "<h1>🚀 BULLDOZER RÉUSSI !</h1><p>La table 'user' a été reconstruite. Tentez l'inscription maintenant.</p>"
+        return "<h1>🚀 BULLDOZER RÉUSSI !</h1>"
     except Exception as e:
         db.session.rollback()
-        return f"<h1>❌ ÉCHEC</h1><p>Erreur : {str(e)}</p>"
+        return f"<h1>❌ ÉCHEC</h1><p>{str(e)}</p>"
 
 # --- ROUTES D'AUTHENTIFICATION ---
 @app.route('/')
@@ -99,7 +95,7 @@ def register():
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
-            flash(f"Erreur d'inscription : {str(e)}", 'danger')
+            flash(f"Erreur : {str(e)}", 'danger')
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -107,11 +103,12 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form.get('email')).first()
         if user and check_password_hash(user.password, request.form.get('password')):
+            # CRÉATION DU CODE SANS ENVOI DE MAIL (POUR ÉVITER LE CRASH LOG 54168.png)
             totp = pyotp.TOTP(user.otp_secret, interval=300)
-            msg = Message('Code DorkNet', sender=app.config['MAIL_USERNAME'], recipients=[user.email])
-            msg.body = f"Bonjour {user.nom}, votre code est : {totp.now()}"
-            mail.send(msg)
+            code = totp.now()
             session['temp_user_id'] = user.id
+            session['debug_otp'] = code 
+            flash(f"MODE DIAGNOSTIC : Votre code est {code}", "info")
             return redirect(url_for('verify_2fa'))
         flash('Identifiants incorrects.', 'danger')
     return render_template('login.html')
@@ -119,14 +116,16 @@ def login():
 @app.route('/verify-2fa', methods=['GET', 'POST'])
 def verify_2fa():
     if 'temp_user_id' not in session: return redirect(url_for('login'))
+    debug_code = session.get('debug_otp', "Expiré")
     if request.method == 'POST':
         user = User.query.get(session['temp_user_id'])
         if pyotp.TOTP(user.otp_secret, interval=300).verify(request.form.get('otp')):
             login_user(user)
             session.pop('temp_user_id')
+            session.pop('debug_otp', None)
             return redirect(url_for('dashboard'))
         flash('Code OTP invalide.', 'danger')
-    return render_template('verify_2fa.html')
+    return render_template('verify_2fa.html', debug_code=debug_code)
 
 @app.route('/dashboard')
 @login_required
@@ -138,7 +137,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- LANCEMENT ---
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
