@@ -21,7 +21,6 @@
             z-index: 1000;
         }
 
-        /* Responsive : Cacher le menu sur mobile par défaut */
         @media (max-width: 992px) {
             #sidebar { margin-left: calc(-1 * var(--sidebar-width)); }
             #sidebar.active { margin-left: 0; }
@@ -43,16 +42,15 @@
         
         .btn-donate { background: #e67e22; border: none; font-weight: bold; color: white; }
         
-        /* Zone d'Upload Stylisée */
         .border-dashed {
             border: 2px dashed #dee2e6;
             transition: all 0.3s ease;
             cursor: pointer;
             background: white;
+            border-radius: 15px;
         }
         .border-dashed:hover { border-color: #3498db; background: #f1f9ff; }
 
-        /* Bouton Menu Mobile */
         #menuToggle { display: none; position: fixed; top: 15px; right: 15px; z-index: 1100; border-radius: 50%; width: 50px; height: 50px; }
         @media (max-width: 992px) { #menuToggle { display: block; } }
     </style>
@@ -75,52 +73,73 @@
                 <li class="nav-item"><a class="nav-link active" href="#"><i class="fas fa-home me-2"></i> Accueil</a></li>
                 <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-user me-2"></i> Mon Profil</a></li>
                 <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-file-alt me-2"></i> Mes Documents</a></li>
-                <li class="nav-item mt-4">
-                    <button class="btn btn-donate w-100"><i class="fas fa-heart me-2"></i> Faire un don</button>
-                </li>
-                <li class="nav-item mt-5">
-                    <a class="nav-link text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a>
-                </li>
+                <li class="nav-item mt-4"><button class="btn btn-donate w-100"><i class="fas fa-heart me-2"></i> Faire un don</button></li>
+                <li class="nav-item mt-5"><a class="nav-link text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a></li>
             </ul>
         </nav>
 
         <main id="content">
             <div class="container-fluid">
                 <h2 class="mb-4 mt-4">Salon Principal</h2>
-                <p class="text-muted">Propulsez votre projet <strong>DorkNet Xchange</strong> vers les investisseurs.</p>
+                <p class="text-muted">Analyse intelligente de votre Business Plan par Profin-AI.</p>
 
-                <div class="card mb-4 border-dashed p-5 text-center" id="dropZone">
+                <div id="progressContainer" class="card p-4 mb-4 d-none shadow-sm">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-primary fw-bold"><i class="fas fa-robot me-2"></i>Analyse IA en cours...</span>
+                        <span id="progressPercent" class="text-muted fw-bold">0%</span>
+                    </div>
+                    <div class="progress" style="height: 12px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p class="small text-center mt-3 text-muted">Lecture du PDF et calcul de bancabilité en cours...</p>
+                </div>
+
+                <div class="card mb-4 border-dashed p-5 text-center shadow-sm" id="dropZone">
                     <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
                     <h5>Soumettre mon Business Plan</h5>
-                    <p>Glissez-déposez ou cliquez pour parcourir (PDF uniquement)</p>
+                    <p class="text-muted">Glissez-déposez ou cliquez pour parcourir (PDF uniquement)</p>
                     <input type="file" class="d-none" id="fileInput" accept="application/pdf">
-                    <button class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">Parcourir</button>
+                    <button class="btn btn-primary px-4" onclick="document.getElementById('fileInput').click()">Sélectionner un fichier</button>
                 </div>
 
                 <div class="row">
                     <div class="col-md-6 mb-4">
-                        <div class="card p-4 text-center shadow-sm">
-                            <h5>Indice de Bancabilité</h5>
-                            <div class="display-1 text-primary my-3">
+                        <div class="card p-4 text-center shadow-sm" style="min-height: 250px;">
+                            <h5 class="text-muted">Indice de Bancabilité</h5>
+                            <div class="display-1 text-primary my-3 fw-bold">
                                 {% if plans %}{{ plans[0].score_bancabilite }}%{% else %}0%{% endif %}
                             </div>
-                            <p class="small text-muted">Analyse en temps réel par Profin-AI</p>
+                            
+                            {% if plans %}
+                            <a href="{{ url_for('download_report', plan_id=plans[0].id) }}" class="btn btn-outline-success btn-sm mt-2">
+                                <i class="fas fa-file-download me-2"></i>Télécharger le dernier rapport
+                            </a>
+                            {% endif %}
+                            
+                            <p class="small text-muted mt-3"><i class="fas fa-check-circle text-success me-1"></i> Score basé sur votre dernier scan</p>
                         </div>
                     </div>
+
                     <div class="col-md-6 mb-4">
-                        <div class="card p-4 shadow-sm">
-                            <h5>Dernières Analyses</h5>
+                        <div class="card p-4 shadow-sm" style="min-height: 250px;">
+                            <h5 class="text-muted">Dernières Analyses</h5>
                             <div class="table-responsive">
                                 <table class="table table-hover mt-3">
-                                    <thead><tr><th>Date</th><th>Score</th></tr></thead>
+                                    <thead class="table-light"><tr><th>Date</th><th>Score</th><th>Action</th></tr></thead>
                                     <tbody>
                                         {% for plan in plans %}
                                         <tr>
                                             <td>{{ plan.date_scan.strftime('%d/%m/%Y') }}</td>
-                                            <td><span class="badge bg-success">{{ plan.score_bancabilite }}%</span></td>
+                                            <td><span class="badge bg-primary">{{ plan.score_bancabilite }}%</span></td>
+                                            <td>
+                                                <a href="{{ url_for('download_report', plan_id=plan.id) }}" class="text-success" title="Télécharger">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                            </td>
                                         </tr>
                                         {% else %}
-                                        <tr><td colspan="2" class="text-center text-muted">Aucun document analysé</td></tr>
+                                        <tr><td colspan="3" class="text-center text-muted">Aucun document analysé</td></tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
@@ -133,22 +152,35 @@
     </div>
 
     <script>
-        // 1. Gestion du Menu Pivotant
         document.getElementById('menuToggle').addEventListener('click', function() {
             document.getElementById('sidebar').classList.toggle('active');
         });
 
-        // 2. Logique d'Upload AJAX
         function uploadFile(file) {
             if (!file) return;
             
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const dropZone = document.getElementById('dropZone');
+            const scoreDisplay = document.querySelector('.display-1');
+
+            progressContainer.classList.remove('d-none');
+            dropZone.classList.add('d-none');
+            scoreDisplay.innerText = "...";
+            
+            let progress = 0;
+            let interval = setInterval(() => {
+                if (progress < 92) {
+                    progress += Math.random() * 10;
+                    let val = Math.min(Math.round(progress), 92);
+                    progressBar.style.width = val + "%";
+                    progressPercent.innerText = val + "%";
+                }
+            }, 350);
+
             let formData = new FormData();
             formData.append('file', file);
-
-            // Interface de chargement
-            const scoreDisplay = document.querySelector('.display-1');
-            const originalText = scoreDisplay.innerText;
-            scoreDisplay.innerText = "...";
 
             fetch('/upload', {
                 method: 'POST',
@@ -156,42 +188,44 @@
             })
             .then(response => response.json())
             .then(data => {
+                clearInterval(interval);
+                progressBar.style.width = "100%";
+                progressPercent.innerText = "100%";
+
                 if (data.success) {
-                    scoreDisplay.innerText = data.score + "%";
-                    alert("✅ Analyse réussie ! Votre score est de " + data.score + "%");
-                    location.reload(); 
+                    setTimeout(() => {
+                        alert("✅ Analyse réussie par l'IA !");
+                        location.reload(); 
+                    }, 600);
                 } else {
-                    scoreDisplay.innerText = originalText;
                     alert("❌ Erreur : " + data.error);
+                    resetUI();
                 }
             })
             .catch(error => {
-                scoreDisplay.innerText = originalText;
-                console.error('Erreur:', error);
-                alert("Le serveur n'a pas pu traiter le fichier.");
+                clearInterval(interval);
+                alert("Erreur de connexion au serveur.");
+                resetUI();
             });
         }
 
-        // Événement clic bouton
+        function resetUI() {
+            document.getElementById('progressContainer').classList.add('d-none');
+            document.getElementById('dropZone').classList.remove('d-none');
+        }
+
         document.getElementById('fileInput').addEventListener('change', function() {
             if (this.files[0]) uploadFile(this.files[0]);
         });
 
-        // Événements Drag & Drop
-        const dropZone = document.getElementById('dropZone');
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-            }, false);
+        const dz = document.getElementById('dropZone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eName => {
+            dz.addEventListener(eName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
         });
-
-        dropZone.addEventListener('dragover', () => { dropZone.style.background = "#f1f9ff"; });
-        dropZone.addEventListener('dragleave', () => { dropZone.style.background = "white"; });
-
-        dropZone.addEventListener('drop', (e) => {
-            dropZone.style.background = "white";
+        dz.addEventListener('dragover', () => { dz.style.background = "#f1f9ff"; dz.style.borderColor = "#3498db"; });
+        dz.addEventListener('dragleave', () => { dz.style.background = "white"; dz.style.borderColor = "#dee2e6"; });
+        dz.addEventListener('drop', (e) => {
+            dz.style.background = "white";
             const files = e.dataTransfer.files;
             if (files.length > 0) uploadFile(files[0]);
         });
