@@ -17,7 +17,7 @@ ia = ProfinIA()
 # --- CONFIGURATION (Render & Sécurité) ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB8*pT1&jW5^hG0%sX3+cV6=yU9_bN2[zM5]qW8{kP1}fL4|rS7')
 
-# Correction automatique de l'URL pour SQLAlchemy (PostgreSQL Render)
+# Correction URL SQLAlchemy pour PostgreSQL Render
 uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
@@ -37,11 +37,12 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES DE DONNÉES SÉCURISÉS ---
+# --- MODÈLES DE DONNÉES (ALIGNÉS SUR LA BASE EXISTANTE) ---
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    nom_complet = db.Column(db.String(150), nullable=False) 
+    # On utilise 'nom' pour correspondre à la colonne existante sur PostgreSQL
+    nom = db.Column(db.String(150), nullable=False) 
     email = db.Column(db.String(150), unique=True, nullable=False) 
     password = db.Column(db.String(500), nullable=False) 
     otp_secret = db.Column(db.String(64)) 
@@ -66,7 +67,7 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        nom = request.form.get('nom')
+        nom_input = request.form.get('nom')
         email = request.form.get('email')
         password = request.form.get('password')
         
@@ -76,8 +77,8 @@ def register():
             
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
         
-        # Ligne fusionnée : utilise bien 'nom_complet' pour correspondre au modèle corrigé
-        new_user = User(nom_complet=nom, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
+        # Alignement sur le champ 'nom' pour éviter le crash
+        new_user = User(nom=nom_input, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
         
         db.session.add(new_user)
         db.session.commit()
@@ -97,7 +98,7 @@ def login():
             otp_code = totp.now()
             
             msg = Message('Votre code ProFin-AI', sender=app.config['MAIL_USERNAME'], recipients=[user.email])
-            msg.body = f"Bonjour {user.nom_complet}, votre code de sécurité est : {otp_code}"
+            msg.body = f"Bonjour {user.nom}, votre code de sécurité est : {otp_code}"
             mail.send(msg)
             
             session['temp_user_id'] = user.id
@@ -126,7 +127,7 @@ def verify_2fa():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', name=current_user.nom_complet)
+    return render_template('dashboard.html', name=current_user.nom)
 
 @app.route('/upload', methods=['POST'])
 @login_required
@@ -146,7 +147,7 @@ def upload_file():
         db.session.commit()
 
         return render_template('dashboard.html', 
-                               name=current_user.nom_complet, 
+                               name=current_user.nom, 
                                score=score, 
                                feedback=feedback)
 
@@ -155,50 +156,27 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- INITIALISATION ET LANCEMENT (STRATÉGIE FORCE-PUSH) ---
+# --- INITIALISATION ET LANCEMENT ---
 
 def setup_database():
-    """Version Force-Push pour corriger l'erreur UndefinedColumn sur Render."""
+    """Initialisation sécurisée pour PostgreSQL Render."""
     with app.app_context():
         try:
-            print("Synchronisation forcée de la structure de la table 'user'...")
-            
-            # 1. Création initiale (si la table n'existe pas du tout)
             db.create_all() 
-            
-            # 2. On tente de renommer 'nom' en 'nom_complet' si l'ancienne version existe
-            try:
-                db.session.execute(db.text("ALTER TABLE \"user\" RENAME COLUMN nom TO nom_complet;"))
-                db.session.commit()
-                print("Colonne 'nom' renommée avec succès.")
-            except Exception:
-                db.session.rollback()
-            
-            # 3. On ajoute 'nom_complet' si elle n'existe toujours pas
-            try:
-                db.session.execute(db.text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS nom_complet VARCHAR(150);"))
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-
-            # 4. Mise à jour des types de données pour supporter le hachage long
+            # On s'assure que les colonnes nécessaires (OTP et Pass long) sont présentes
             commands = [
-                "ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);",
-                "ALTER TABLE \"user\" ALTER COLUMN email TYPE VARCHAR(150);",
-                "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);"
+                "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);",
+                "ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);"
             ]
-            
             for cmd in commands:
                 try:
                     db.session.execute(db.text(cmd))
                     db.session.commit()
-                except Exception as e:
+                except:
                     db.session.rollback()
-                    print(f"Mise à jour ignorée : {e}")
-
-            print("Base de données ProFin-AI synchronisée et prête.")
+            print("Base de données synchronisée (Mode: nom).")
         except Exception as e:
-            print(f"ERREUR CRITIQUE DATABASE : {e}")
+            print(f"Erreur d'initialisation : {e}")
 
 if __name__ == '__main__':
     setup_database()
