@@ -6,4 +6,4 @@ pyotp
 pypdf
 fpdf
 stripe
-werkzeug
+gunicorn
