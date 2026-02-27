@@ -37,7 +37,6 @@ login_manager.login_view = 'login'
 
 # --- MODÈLES DE DONNÉES ---
 class User(db.Model):
-    # On garde 'user' pour que la route de réparation puisse modifier la table existante
     __tablename__ = 'user' 
     
     id = db.Column(db.Integer, primary_key=True)
@@ -62,20 +61,19 @@ class BusinessPlan(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- ROUTE DE RÉPARATION CHIRURGICALE ---
-@app.route('/force-repair-db')
-def force_repair_db():
-    try:
-        from sqlalchemy import text
-        # Ajout des colonnes si elles manquent dans la table existante
-        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS nom VARCHAR(150);'))
-        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);'))
-        db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);'))
-        db.session.commit()
-        return "<h1>✅ RÉPARATION RÉUSSIE !</h1><p>La table 'user' est à jour. Testez l'inscription maintenant.</p>"
-    except Exception as e:
-        db.session.rollback()
-        return f"<h1>❌ ÉCHEC</h1><p>Erreur : {str(e)}</p>"
+# --- ROUTE DE RÉPARATION MISE EN SOMMEIL (SÉCURITÉ) ---
+# @app.route('/force-repair-db')
+# def force_repair_db():
+#     try:
+#         from sqlalchemy import text
+#         db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS nom VARCHAR(150);'))
+#         db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);'))
+#         db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);'))
+#         db.session.commit()
+#         return "<h1>✅ RÉPARATION RÉUSSIE !</h1>"
+#     except Exception as e:
+#         db.session.rollback()
+#         return f"<h1>❌ ÉCHEC</h1><p>Erreur : {str(e)}</p>"
 
 # --- ROUTES D'AUTHENTIFICATION ---
 @app.route('/')
