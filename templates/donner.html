@@ -7,48 +7,83 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { background: #f8f9fa; }
-        .donation-card { border: none; border-radius: 15px; transition: 0.3s; }
-        .donation-card:hover { transform: scale(1.02); shadow: 0 10px 20px rgba(0,0,0,0.1); }
-        .btn-paypal { background: #003087; color: white; font-weight: bold; }
-        .btn-stripe { background: #6772e5; color: white; font-weight: bold; }
+        body { background: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
+        .donation-card { border: none; border-radius: 15px; transition: 0.3s; background: white; }
+        .donation-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .btn-paypal { background: #003087; color: white; font-weight: bold; border-radius: 8px; }
+        .btn-paypal:hover { background: #001c4f; color: white; }
+        .btn-stripe { background: #6772e5; color: white; font-weight: bold; border-radius: 8px; }
+        .btn-stripe:hover { background: #4b55bc; color: white; }
+        .impact-icon { font-size: 1.5rem; margin-bottom: 10px; display: block; }
+        .text-impact { font-size: 0.95rem; font-weight: 500; }
     </style>
 </head>
 <body>
 
 <div class="container py-5 text-center">
     <div class="mb-5">
-        <h1 class="display-5 fw-bold text-primary">Soutenir DorkNet Xchange</h1>
-        <p class="lead text-muted">Aidez-nous à démocratiser l'accès au financement pour les entrepreneurs.</p>
+        <h1 class="display-5 fw-bold text-primary">Bâtissons l'avenir de la finance</h1>
+        <p class="lead text-muted mx-auto" style="max-width: 750px;">
+            <strong>Dr Enoch Numbi</strong> et l'équipe de <strong>DorkNet Xchange</strong> travaillent sans relâche pour offrir aux entrepreneurs les outils des plus grandes banques d'affaires. 
+            <br><br>
+            Votre soutien nous permet de rester indépendants, de démocratiser l'accès au financement et de continuer à innover pour vous.
+        </p>
     </div>
 
     <div class="row justify-content-center">
         <div class="col-md-5 mb-4">
-            <div class="card donation-card shadow-sm p-4">
+            <div class="card donation-card shadow-sm p-4 h-100">
                 <i class="fab fa-paypal fa-3x text-primary mb-3"></i>
-                <h3>PayPal</h3>
-                <p class="text-muted">Faites un don unique ou récurrent de manière sécurisée via PayPal.</p>
-                <a href="https://www.paypal.me/VOTRE_NOM" target="_blank" class="btn btn-paypal btn-lg w-100">
-                    Soutenir avec PayPal
-                </a>
+                <h3>Soutien Rapide</h3>
+                <p class="text-muted">Faites un don unique ou configurez un soutien mensuel via PayPal en un clic.</p>
+                <div class="mt-auto">
+                    <a href="https://www.paypal.me/VOTRE_NOM" target="_blank" class="btn btn-paypal btn-lg w-100">
+                        Soutenir avec PayPal
+                    </a>
+                </div>
             </div>
         </div>
 
         <div class="col-md-5 mb-4">
-            <div class="card donation-card shadow-sm p-4">
+            <div class="card donation-card shadow-sm p-4 h-100">
                 <i class="fas fa-credit-card fa-3x text-success mb-3"></i>
                 <h3>Carte Bancaire</h3>
-                <p class="text-muted">Utilisez Stripe pour un paiement rapide par carte bancaire (Visa/Mastercard).</p>
-                <a href="https://buy.stripe.com/VOTRE_LIEN_CHECKOUT" target="_blank" class="btn btn-stripe btn-lg w-100">
-                    Soutenir avec Stripe
-                </a>
+                <p class="text-muted">Utilisez notre interface Stripe sécurisée pour un don par Visa, Mastercard ou American Express.</p>
+                <div class="mt-auto">
+                    <a href="https://buy.stripe.com/VOTRE_LIEN_CHECKOUT" target="_blank" class="btn btn-stripe btn-lg w-100">
+                        Soutenir avec Stripe
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-5">
+        <div class="col-12 border-top pt-5">
+            <h4 class="text-secondary mb-4">Votre impact direct sur le projet :</h4>
+            <div class="row g-4 justify-content-center">
+                <div class="col-6 col-md-3">
+                    <i class="fas fa-microchip text-primary impact-icon"></i>
+                    <span class="text-impact">Maintenance IA</span>
+                    <p class="small text-muted">Amélioration des algorithmes de bancabilité.</p>
+                </div>
+                <div class="col-6 col-md-3">
+                    <i class="fas fa-shield-alt text-success impact-icon"></i>
+                    <span class="text-impact">Sécurité des données</span>
+                    <p class="small text-muted">Protection de vos Business Plans.</p>
+                </div>
+                <div class="col-6 col-md-3">
+                    <i class="fas fa-users text-info impact-icon"></i>
+                    <span class="text-impact">Support utilisateur</span>
+                    <p class="small text-muted">Assistance gratuite pour les entrepreneurs.</p>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="mt-5">
-        <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-secondary">
-            <i class="fas fa-arrow-left"></i> Retour au tableau de bord
+        <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-secondary fw-bold">
+            <i class="fas fa-arrow-left me-2"></i> Retour au salon principal
         </a>
     </div>
 </div>
