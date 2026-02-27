@@ -4,99 +4,154 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | ProFin-AI</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@10.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .sidebar { height: 100vh; background: #2c3e50; color: white; position: fixed; width: 250px; padding-top: 20px; }
+        .sidebar { height: 100vh; background: #2c3e50; color: white; position: fixed; width: 250px; padding-top: 20px; z-index: 1000; }
         .sidebar a { color: #bdc3c7; text-decoration: none; padding: 15px 25px; display: block; transition: 0.3s; }
         .sidebar a:hover { background: #34495e; color: white; border-left: 4px solid #3498db; }
-        .main-content { margin-left: 250px; padding: 40px; }
-        .card-stat { border: none; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.3s; }
+        .main-content { margin-left: 250px; padding: 40px; min-height: 100vh; }
+        .card-stat { border: none; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.3s; background: white; }
         .card-stat:hover { transform: translateY(-5px); }
-        .drop-zone { border: 2px dashed #3498db; border-radius: 20px; padding: 40px; text-align: center; background: white; cursor: pointer; transition: 0.3s; }
-        .drop-zone:hover { background: #e8f4fd; }
-        .score-circle { width: 150px; height: 150px; border-radius: 50%; border: 10px solid #3498db; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; margin: 0 auto; color: #2c3e50; }
-        .btn-donate { background: #e67e22; border: none; color: white; }
-        .btn-donate:hover { background: #d35400; }
+        .drop-zone { border: 2px dashed #3498db; border-radius: 20px; padding: 40px; text-align: center; background: #f8fbff; cursor: pointer; transition: 0.3s; }
+        .drop-zone:hover { background: #e8f4fd; border-color: #2980b9; }
+        .score-circle { 
+            width: 150px; height: 150px; border-radius: 50%; 
+            border: 10px solid #3498db; display: flex; align-items: center; 
+            justify-content: center; font-size: 2.2rem; font-weight: bold; 
+            margin: 0 auto; color: #2c3e50; background: white;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        }
+        .btn-donate { background: #e67e22; border: none; color: white; font-weight: bold; }
+        .btn-donate:hover { background: #d35400; color: white; }
+        .feedback-text { font-size: 0.95rem; line-height: 1.5; color: #34495e; }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <h3 class="text-center mb-4">ProFin-AI</h3>
+    <div class="sidebar shadow">
+        <h3 class="text-center mb-4 fw-bold">ProFin-AI</h3>
         <div class="text-center mb-4">
-            <img src="https://via.placeholder.com/80" class="rounded-circle mb-2" alt="Profil">
-            <p class="small">{{ name }}</p>
+            <img src="https://ui-avatars.com/api/?name={{ name }}&background=3498db&color=fff" class="rounded-circle mb-2 shadow-sm" alt="Profil" width="80">
+            <p class="small mb-0 px-2">{{ name }}</p>
         </div>
-        <a href="#"><i class="fas fa-home me-2"></i> Accueil</a>
+        <a href="{{ url_for('dashboard') }}"><i class="fas fa-home me-2"></i> Accueil</a>
         <a href="#"><i class="fas fa-user-circle me-2"></i> Mon Profil</a>
         <a href="#"><i class="fas fa-file-invoice me-2"></i> Mes Documents</a>
-        <a href="#" class="btn-donate m-3 rounded-pill text-center text-white"><i class="fas fa-heart me-2"></i> Faire un don</a>
-        <hr>
+        <a href="#" class="btn-donate m-3 rounded-pill text-center"><i class="fas fa-heart me-2"></i> Faire un don</a>
+        <hr class="mx-3">
         <a href="#"><i class="fas fa-info-circle me-2"></i> À propos</a>
-        <a href="{{ url_for('logout') }}" class="text-danger"><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a>
+        <a href="{{ url_for('logout') }}" class="text-danger mt-5"><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a>
     </div>
 
     <div class="main-content">
         <div class="container-fluid">
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
             <div class="row mb-4">
                 <div class="col-md-12">
-                    <h2>Bienvenue dans votre Salon Principal, Dr Enoch</h2>
-                    <p class="text-muted">Analysez la bancabilité de votre projet en un clic.</p>
+                    <h2 class="fw-bold">Salon Principal</h2>
+                    <p class="text-muted">Propulsez votre projet vers les investisseurs africains.</p>
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-lg-8">
-                    <div class="card card-stat p-4 mb-4">
-                        <h5 class="mb-4">Soumettre mon Business Plan</h5>
+                    <div class="card card-stat p-4 mb-4 border-0">
+                        <h5 class="mb-4 fw-bold"><i class="fas fa-file-upload me-2 text-primary"></i>Soumettre mon Business Plan</h5>
                         <form action="/upload" method="post" enctype="multipart/form-data">
                             <div class="drop-zone" onclick="document.getElementById('fileInput').click()">
-                                <i class="fas fa-cloud-upload-alt fa-3x mb-3" style="color: #3498db;"></i>
-                                <p>Glissez-déposez votre fichier ici ou <strong>cliquez pour parcourir</strong></p>
-                                <input type="file" id="fileInput" name="business_plan" style="display: none;" accept=".pdf,.doc,.docx">
-                                <p class="text-muted small">Formats acceptés : PDF, DOCX (Max 10Mo)</p>
+                                <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+                                <p class="mb-1">Glissez-déposez votre dossier ici</p>
+                                <p class="text-muted small">ou <strong>cliquez pour parcourir vos fichiers</strong></p>
+                                <input type="file" id="fileInput" name="business_plan" style="display: none;" accept=".pdf,.doc,.docx" required onchange="this.form.submit()">
+                                <p class="text-muted small mt-2">Formats acceptés : PDF, DOCX (Max 10Mo)</p>
                             </div>
-                            <button type="submit" class="btn btn-primary mt-3 w-100 py-2">Lancer l'Analyse IA</button>
+                            <div class="mt-3 text-center">
+                                <small class="text-muted italic"><i class="fas fa-shield-alt me-1"></i> Vos données sont cryptées et confidentielles.</small>
+                            </div>
                         </form>
                     </div>
                 </div>
 
                 <div class="col-lg-4">
-                    <div class="card card-stat p-4 text-center">
-                        <h5 class="mb-4">Score de Bancabilité</h5>
+                    <div class="card card-stat p-4 text-center h-100 shadow-sm">
+                        <h5 class="mb-4 fw-bold text-dark">Indice de Bancabilité</h5>
+                        
                         <div class="score-circle">
-                            0%
+                            {{ score if score else 0 }}%
                         </div>
-                        <p class="mt-4 text-muted">Votre projet n'a pas encore été scanné.</p>
-                        <div class="alert alert-info small mt-2">
-                            Un score > 75% augmente vos chances d'obtenir un financement auprès des banques partenaires.
+
+                        <div class="mt-4">
+                            <p class="fw-bold mb-2 {{ 'text-success' if score and score >= 75 else 'text-dark' }}">
+                                {% if score %}
+                                    Résultat de l'analyse IA
+                                {% else %}
+                                    En attente de scan
+                                {% endif %}
+                            </p>
+                            <p class="feedback-text italic">
+                                {{ feedback if feedback else "Veuillez soumettre votre business plan pour obtenir une évaluation immédiate." }}
+                            </p>
                         </div>
+
+                        {% if score %}
+                        <div class="alert {{ 'alert-success' if score >= 70 else 'alert-warning' }} small mt-3">
+                             <i class="fas fa-lightbulb me-1"></i>
+                             {% if score >= 75 %}
+                                Votre projet est prêt pour le financement !
+                             {% else %}
+                                Améliorez vos points faibles pour atteindre 75%.
+                             {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
             <div class="row mt-4">
                 <div class="col-md-12">
-                    <div class="card card-stat p-4">
-                        <h5>Historique des analyses</h5>
-                        <table class="table mt-3">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Projet</th>
-                                    <th>Score</th>
-                                    <th>Statut</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted">Aucune donnée disponible</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="card card-stat p-4 border-0 shadow-sm">
+                        <h5 class="fw-bold mb-3"><i class="fas fa-history me-2 text-secondary"></i>Mes Dernières Analyses</h5>
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Document</th>
+                                        <th>Score IA</th>
+                                        <th>Statut</th>
+                                        <th>Rapport</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if score %}
+                                    <tr>
+                                        <td>Aujourd'hui</td>
+                                        <td>Business_Plan_Pro.pdf</td>
+                                        <td><span class="badge rounded-pill {{ 'bg-success' if score >= 75 else 'bg-primary' }}">{{ score }}%</span></td>
+                                        <td><span class="text-success fw-bold">Analysé</span></td>
+                                        <td><button class="btn btn-sm btn-outline-primary">Voir détails</button></td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">Aucun document analysé pour le moment.</td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
