@@ -10,6 +10,7 @@
         :root { --sidebar-width: 280px; }
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
         
+        /* Sidebar Styles */
         #sidebar {
             width: var(--sidebar-width);
             height: 100vh;
@@ -39,7 +40,9 @@
         .profile-section { padding: 30px 20px; text-align: center; border-bottom: 1px solid #3e4f5f; }
         .avatar-circle { width: 80px; height: 80px; background: #3498db; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 30px; font-weight: bold; }
         
-        .btn-donate { background: #e67e22; border: none; font-weight: bold; color: white; }
+        .btn-donate { background: #e67e22; border: none; font-weight: bold; color: white; transition: background 0.3s; }
+        .btn-donate:hover { background: #d35400; color: white; }
+
         .border-dashed {
             border: 2px dashed #dee2e6;
             transition: all 0.3s ease;
@@ -84,7 +87,9 @@
                     </a>
                 </li>
                 <li class="nav-item mt-4">
-                    <a href="#" class="btn btn-donate w-100"><i class="fas fa-heart me-2"></i> Faire un don</a>
+                    <a href="{{ url_for('donner') }}" class="btn btn-donate w-100">
+                        <i class="fas fa-heart me-2"></i> Soutenir le projet
+                    </a>
                 </li>
                 <li class="nav-item mt-5">
                     <a class="nav-link text-danger" href="{{ url_for('logout') }}">
@@ -112,7 +117,7 @@
                 <div class="card mb-4 border-dashed p-5 text-center shadow-sm" id="dropZone">
                     <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
                     <h5>Soumettre mon Business Plan</h5>
-                    <p class="text-muted">Glissez-déposez le PDF ici</p>
+                    <p class="text-muted">Glissez-déposez le PDF ici pour calculer votre bancabilité</p>
                     <input type="file" class="d-none" id="fileInput" accept="application/pdf">
                     <button class="btn btn-primary px-4" onclick="document.getElementById('fileInput').click()">Sélectionner un fichier</button>
                 </div>
@@ -155,7 +160,7 @@
                                             </td>
                                         </tr>
                                         {% else %}
-                                        <tr><td colspan="3" class="text-center text-muted">Aucune donnée</td></tr>
+                                        <tr><td colspan="3" class="text-center text-muted">Aucune donnée disponible</td></tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
@@ -181,8 +186,8 @@
                         <input type="email" id="investorEmail" class="form-control" placeholder="exemple@invest.com" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Message</label>
-                        <textarea id="investorMessage" class="form-control" rows="3">Bonjour, je vous partage l'analyse de mon projet.</textarea>
+                        <label class="form-label">Message personnalisé</label>
+                        <textarea id="investorMessage" class="form-control" rows="3">Bonjour, je vous partage l'analyse de mon projet via DorkNet Xchange.</textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -195,12 +200,12 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Menu Sidebar
+        // Toggle Sidebar Mobile
         document.getElementById('menuToggle').addEventListener('click', function() {
             document.getElementById('sidebar').classList.toggle('active');
         });
 
-        // Gestion Partage
+        // Gestion du Partage
         function openShareModal(planId) {
             document.getElementById('sharePlanId').value = planId;
             new bootstrap.Modal(document.getElementById('shareModal')).show();
@@ -210,7 +215,7 @@
             const planId = document.getElementById('sharePlanId').value;
             const email = document.getElementById('investorEmail').value;
             const message = document.getElementById('investorMessage').value;
-            if(!email) return alert("Veuillez saisir un email.");
+            if(!email) return alert("Veuillez saisir un email valide.");
 
             fetch('/share-report', {
                 method: 'POST',
@@ -219,33 +224,59 @@
             })
             .then(res => res.json())
             .then(data => {
-                if(data.success) { alert("📩 Rapport envoyé !"); location.reload(); }
-                else { alert("Erreur : " + data.error); }
+                if(data.success) { 
+                    alert("📩 Rapport envoyé avec succès !"); 
+                    location.reload(); 
+                } else { 
+                    alert("Erreur : " + data.error); 
+                }
             });
         }
 
-        // Gestion Suppression
+        // Gestion de la Suppression
         function confirmDelete(planId) {
-            if (confirm("Supprimer définitivement cette analyse ?")) {
+            if (confirm("Êtes-vous sûr de vouloir supprimer définitivement cette analyse ?")) {
                 fetch(`/delete-plan/${planId}`, { method: 'POST' })
                 .then(res => res.json())
-                .then(data => { if(data.success) location.reload(); else alert("Erreur"); });
+                .then(data => { 
+                    if(data.success) location.reload(); 
+                    else alert("Erreur lors de la suppression."); 
+                });
             }
         }
 
-        // Upload Logic
+        // Logique d'Upload
         function uploadFile(file) {
             if (!file) return;
             const progressContainer = document.getElementById('progressContainer');
             const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            
             progressContainer.classList.remove('d-none');
             
+            let progress = 0;
+            let interval = setInterval(() => {
+                if (progress < 90) {
+                    progress += 5;
+                    progressBar.style.width = progress + "%";
+                    progressPercent.innerText = progress + "%";
+                }
+            }, 200);
+
             let formData = new FormData();
             formData.append('file', file);
 
             fetch('/upload', { method: 'POST', body: formData })
             .then(res => res.json())
-            .then(data => { if (data.success) location.reload(); else alert("Erreur : " + data.error); });
+            .then(data => {
+                clearInterval(interval);
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert("Erreur : " + data.error);
+                    progressContainer.classList.add('d-none');
+                }
+            });
         }
 
         document.getElementById('fileInput').addEventListener('change', function() {
