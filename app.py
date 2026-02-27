@@ -38,13 +38,12 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 # --- MODÈLES DE DONNÉES SÉCURISÉS ---
-# Longueurs élargies pour éviter les erreurs "Data too long" lors du hachage
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nom_complet = db.Column(db.String(150), nullable=False) 
     email = db.Column(db.String(150), unique=True, nullable=False) 
-    password = db.Column(db.String(500), nullable=False) # Supporte les hachages longs (argon2, pbkdf2, etc.)
+    password = db.Column(db.String(500), nullable=False) # Supporte les hachages longs
     otp_secret = db.Column(db.String(64)) 
     
 class BusinessPlan(db.Model):
@@ -75,7 +74,6 @@ def register():
             flash('Cet email est déjà utilisé.', 'danger')
             return redirect(url_for('register'))
             
-        # Hachage du mot de passe (génère une chaîne d'environ 90-120 caractères)
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = User(nom_complet=nom, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
         
@@ -155,19 +153,32 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- INITIALISATION ET LANCEMENT ---
+# --- INITIALISATION ET LANCEMENT (FORCE MIGRATION) ---
 
 def setup_database():
-    """Prépare la base de données PostgreSQL de manière forcée au démarrage."""
+    """Force la mise à jour des colonnes sans supprimer la base partagée."""
     with app.app_context():
         try:
-            print("Vérification de la base de données DorkNet...")
-            db.create_all()
-            print("Base de données opérationnelle avec modèles sécurisés.")
+            print("Vérification et mise à jour de la structure ProFin-AI...")
+            # Crée les tables si elles n'existent pas encore
+            db.create_all() 
+            
+            # Correction manuelle pour PostgreSQL : élargissement des colonnes
+            # On utilise db.text() pour exécuter du SQL pur sur la base dorknet_db
+            db.session.execute(db.text("ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);"))
+            db.session.execute(db.text("ALTER TABLE \"user\" ALTER COLUMN email TYPE VARCHAR(150);"))
+            db.session.execute(db.text("ALTER TABLE \"user\" ALTER COLUMN nom_complet TYPE VARCHAR(150);"))
+            db.session.commit()
+            
+            print("Mise à jour réussie : Les colonnes supportent désormais les formats longs.")
         except Exception as e:
-            print(f"Erreur d'initialisation : {e}")
+            db.session.rollback()
+            # Si l'erreur est que les colonnes sont déjà à la bonne taille, on ignore proprement
+            print(f"Note : Structure déjà à jour ou SQL ignoré : {e}")
 
 if __name__ == '__main__':
+    # Préparation de la base de données au démarrage de l'instance Render
     setup_database()
+    
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
