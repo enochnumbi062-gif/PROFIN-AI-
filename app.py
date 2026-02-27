@@ -60,6 +60,10 @@ class BusinessPlan(db.Model):
     date_scan = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
+# --- INITIALISATION FORCÉE DE LA BASE DE DONNÉES (Pour Render/Gunicorn) ---
+with app.app_context():
+    db.create_all()
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -253,7 +257,7 @@ def test_thank_you():
         flash("Erreur lors de l'envoi de l'email.", "danger")
     return redirect(url_for('donner'))
 
+# --- BLOC FINAL DE LANCEMENT ---
 if __name__ == '__main__':
-    with app.app_context(): db.create_all()
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
