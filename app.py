@@ -1,6 +1,6 @@
 import os
 import pyotp
-from flask import Flask, render_template, redirect, url_for, request, flash, session
+from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
@@ -23,7 +23,7 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configuration Email (Contournée via Mode Diagnostic pour éviter l'erreur 500)
+# Configuration Email
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -90,7 +90,6 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form.get('email')).first()
         if user and check_password_hash(user.password, request.form.get('password')):
-            # Le code est généré et stocké en session pour éviter le crash mail (Log 54168.png)
             totp = pyotp.TOTP(user.otp_secret, interval=300)
             code = totp.now()
             session['temp_user_id'] = user.id
@@ -117,8 +116,46 @@ def verify_2fa():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Affiche le nom de l'utilisateur sur le Dashboard (Log 54185.png)
-    return render_template('dashboard.html', name=current_user.nom)
+    # Récupérer l'historique des plans de l'utilisateur
+    plans = BusinessPlan.query.filter_by(user_id=current_user.id).order_by(BusinessPlan.date_scan.desc()).all()
+    return render_template('dashboard.html', name=current_user.nom, plans=plans)
+
+# --- ROUTE D'ANALYSE DES BUSINESS PLANS ---
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "Aucun fichier détecté"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Nom de fichier vide"}), 400
+
+    if file and file.filename.lower().endswith('.pdf'):
+        try:
+            # Simulation d'extraction et d'analyse IA
+            # On pourra plus tard utiliser ProfinIA.analyser()
+            score = 78.5 
+            analyse = "Analyse générée : Votre projet présente une structure solide."
+
+            new_plan = BusinessPlan(
+                score_bancabilite=score,
+                analyse_ia=analyse,
+                user_id=current_user.id
+            )
+            db.session.add(new_plan)
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "score": score,
+                "analyse": analyse
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+            
+    return jsonify({"error": "Seuls les fichiers PDF sont acceptés"}), 400
 
 @app.route('/logout')
 def logout():
