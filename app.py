@@ -8,24 +8,31 @@ from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
-# Importation du moteur d'IA (Assurez-vous que ia_engine.py est dans le même dossier)
+# Importation du moteur d'IA
 from ia_engine import ProfinIA
 
 app = Flask(__name__)
 ia = ProfinIA()
 
 # --- CONFIGURATION (Render & Sécurité) ---
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'votre_cle_secrete_profin_2026')
-# Utilise DATABASE_URL de Render (PostgreSQL), sinon SQLite en local
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db').replace("postgres://", "postgresql://", 1)
+# Utilisation de la clé secrète complexe
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB8*pT1&jW5^hG0%sX3+cV6=yU9_bN2[zM5]qW8{kP1}fL4|rS7')
+
+# --- FUSION DU CORRECTEUR DE DATABASE_URL ---
+uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
+if uri and uri.startswith("postgres://"):
+    # SQLAlchemy exige 'postgresql://' au lieu de 'postgres://' utilisé par Render
+    uri = uri.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configuration Email (Contact Profin-AI)
+# Configuration Email (ProFin-AI Server)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'contact.profin.ai@gmail.com'
-app.config['MAIL_PASSWORD'] = 'jmnp cwbj mpzf fzjw' 
+app.config['MAIL_USERNAME'] = os.environ.get('EMAIL_USER', 'contact.profin.ai@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('EMAIL_PASS', 'jmnp cwbj mpzf fzjw') 
 
 db = SQLAlchemy(app)
 mail = Mail(app)
@@ -133,10 +140,8 @@ def upload_file():
         return redirect(url_for('dashboard'))
 
     if file:
-        # L'IA analyse le fichier
         score, feedback = ia.analyser_pdf(file)
         
-        # Enregistrement en base de données
         new_scan = BusinessPlan(score_bancabilite=score, analyse_ia=feedback, user_id=current_user.id)
         db.session.add(new_scan)
         db.session.commit()
@@ -154,4 +159,6 @@ def logout():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    # Utilisation du port configuré par Render
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
