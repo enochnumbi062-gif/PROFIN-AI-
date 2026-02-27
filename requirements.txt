@@ -7,3 +7,5 @@ flask-mail
 pyotp
 pdfminer.six
 python-docx
+pypdf
+
