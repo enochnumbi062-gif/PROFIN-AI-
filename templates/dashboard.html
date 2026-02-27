@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --sidebar-width: 280px; }
-        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
         
         /* Sidebar Styles */
         #sidebar {
@@ -32,6 +32,7 @@
             margin-left: var(--sidebar-width);
             transition: all 0.3s;
             padding: 20px;
+            width: 100%;
         }
 
         .nav-link { color: rgba(255,255,255,0.8); margin: 10px 0; border-radius: 5px; }
@@ -40,18 +41,25 @@
         .profile-section { padding: 30px 20px; text-align: center; border-bottom: 1px solid #3e4f5f; }
         .avatar-circle { width: 80px; height: 80px; background: #3498db; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 30px; font-weight: bold; }
         
-        .btn-donate { background: #e67e22; border: none; font-weight: bold; }
+        .btn-donate { background: #e67e22; border: none; font-weight: bold; color: white; }
         
-        /* Bouton Menu Mobile */
-        #menuToggle { display: none; }
-        @media (max-width: 992px) {
-            #menuToggle { display: block; position: fixed; top: 15px; left: 15px; z-index: 1100; }
+        /* Zone d'Upload Stylisée */
+        .border-dashed {
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
         }
+        .border-dashed:hover { border-color: #3498db; background: #f1f9ff; }
+
+        /* Bouton Menu Mobile */
+        #menuToggle { display: none; position: fixed; top: 15px; right: 15px; z-index: 1100; border-radius: 50%; width: 50px; height: 50px; }
+        @media (max-width: 992px) { #menuToggle { display: block; } }
     </style>
 </head>
 <body>
 
-    <button id="menuToggle" class="btn btn-dark">
+    <button id="menuToggle" class="btn btn-dark shadow">
         <i class="fas fa-bars"></i>
     </button>
 
@@ -67,39 +75,56 @@
                 <li class="nav-item"><a class="nav-link active" href="#"><i class="fas fa-home me-2"></i> Accueil</a></li>
                 <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-user me-2"></i> Mon Profil</a></li>
                 <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-file-alt me-2"></i> Mes Documents</a></li>
-                <li class="nav-item mt-4"><button class="btn btn-donate w-100"><i class="fas fa-heart me-2"></i> Faire un don</button></li>
-                <li class="nav-item mt-5"><a class="nav-link text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a></li>
+                <li class="nav-item mt-4">
+                    <button class="btn btn-donate w-100"><i class="fas fa-heart me-2"></i> Faire un don</button>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a>
+                </li>
             </ul>
         </nav>
 
-        <main id="content" class="w-100">
+        <main id="content">
             <div class="container-fluid">
                 <h2 class="mb-4 mt-4">Salon Principal</h2>
-                <p class="text-muted">Propulsez votre projet vers les investisseurs africains.</p>
+                <p class="text-muted">Propulsez votre projet <strong>DorkNet Xchange</strong> vers les investisseurs.</p>
 
-                <div class="card mb-4 border-dashed p-5 text-center" style="border: 2px dashed #dee2e6;">
+                <div class="card mb-4 border-dashed p-5 text-center" id="dropZone">
                     <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
                     <h5>Soumettre mon Business Plan</h5>
-                    <p>Glissez-déposez ou cliquez pour parcourir</p>
-                    <input type="file" class="d-none" id="fileInput">
+                    <p>Glissez-déposez ou cliquez pour parcourir (PDF uniquement)</p>
+                    <input type="file" class="d-none" id="fileInput" accept="application/pdf">
                     <button class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">Parcourir</button>
                 </div>
 
                 <div class="row">
                     <div class="col-md-6 mb-4">
-                        <div class="card p-4 text-center">
+                        <div class="card p-4 text-center shadow-sm">
                             <h5>Indice de Bancabilité</h5>
-                            <div class="display-1 text-primary my-3">0%</div>
-                            <p class="small">En attente de scan</p>
+                            <div class="display-1 text-primary my-3">
+                                {% if plans %}{{ plans[0].score_bancabilite }}%{% else %}0%{% endif %}
+                            </div>
+                            <p class="small text-muted">Analyse en temps réel par Profin-AI</p>
                         </div>
                     </div>
                     <div class="col-md-6 mb-4">
-                        <div class="card p-4">
+                        <div class="card p-4 shadow-sm">
                             <h5>Dernières Analyses</h5>
-                            <table class="table table-hover mt-3">
-                                <thead><tr><th>Date</th><th>Score</th></tr></thead>
-                                <tbody><tr><td colspan="2" class="text-center">Aucun document analysé</td></tr></tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="table table-hover mt-3">
+                                    <thead><tr><th>Date</th><th>Score</th></tr></thead>
+                                    <tbody>
+                                        {% for plan in plans %}
+                                        <tr>
+                                            <td>{{ plan.date_scan.strftime('%d/%m/%Y') }}</td>
+                                            <td><span class="badge bg-success">{{ plan.score_bancabilite }}%</span></td>
+                                        </tr>
+                                        {% else %}
+                                        <tr><td colspan="2" class="text-center text-muted">Aucun document analysé</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -108,8 +133,67 @@
     </div>
 
     <script>
+        // 1. Gestion du Menu Pivotant
         document.getElementById('menuToggle').addEventListener('click', function() {
             document.getElementById('sidebar').classList.toggle('active');
+        });
+
+        // 2. Logique d'Upload AJAX
+        function uploadFile(file) {
+            if (!file) return;
+            
+            let formData = new FormData();
+            formData.append('file', file);
+
+            // Interface de chargement
+            const scoreDisplay = document.querySelector('.display-1');
+            const originalText = scoreDisplay.innerText;
+            scoreDisplay.innerText = "...";
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    scoreDisplay.innerText = data.score + "%";
+                    alert("✅ Analyse réussie ! Votre score est de " + data.score + "%");
+                    location.reload(); 
+                } else {
+                    scoreDisplay.innerText = originalText;
+                    alert("❌ Erreur : " + data.error);
+                }
+            })
+            .catch(error => {
+                scoreDisplay.innerText = originalText;
+                console.error('Erreur:', error);
+                alert("Le serveur n'a pas pu traiter le fichier.");
+            });
+        }
+
+        // Événement clic bouton
+        document.getElementById('fileInput').addEventListener('change', function() {
+            if (this.files[0]) uploadFile(this.files[0]);
+        });
+
+        // Événements Drag & Drop
+        const dropZone = document.getElementById('dropZone');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        dropZone.addEventListener('dragover', () => { dropZone.style.background = "#f1f9ff"; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.background = "white"; });
+
+        dropZone.addEventListener('drop', (e) => {
+            dropZone.style.background = "white";
+            const files = e.dataTransfer.files;
+            if (files.length > 0) uploadFile(files[0]);
         });
     </script>
 </body>
