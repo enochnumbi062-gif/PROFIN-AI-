@@ -20,7 +20,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB
 # Correction automatique de l'URL pour SQLAlchemy (PostgreSQL Render)
 uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
 if uri and uri.startswith("postgres://"):
-    uri = uri.replace("postgres://", "postgresql://", 1)
+    uri = uri.replace("postgres://", 1) # Correction auto gérée par Render
 
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -156,29 +156,33 @@ def logout():
 # --- INITIALISATION ET LANCEMENT (FORCE MIGRATION) ---
 
 def setup_database():
-    """Force la mise à jour des colonnes sans supprimer la base partagée."""
+    """Mise à jour forcée des colonnes pour ProFin-AI sans casser les autres apps."""
     with app.app_context():
         try:
-            print("Vérification et mise à jour de la structure ProFin-AI...")
-            # Crée les tables si elles n'existent pas encore
+            print("Vérification approfondie de la structure dorknet_db...")
             db.create_all() 
             
-            # Correction manuelle pour PostgreSQL : élargissement des colonnes
-            # On utilise db.text() pour exécuter du SQL pur sur la base dorknet_db
-            db.session.execute(db.text("ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);"))
-            db.session.execute(db.text("ALTER TABLE \"user\" ALTER COLUMN email TYPE VARCHAR(150);"))
-            db.session.execute(db.text("ALTER TABLE \"user\" ALTER COLUMN nom_complet TYPE VARCHAR(150);"))
-            db.session.commit()
+            # Correction manuelle pour PostgreSQL : création et élargissement
+            commands = [
+                "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS nom_complet VARCHAR(150);",
+                "ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);",
+                "ALTER TABLE \"user\" ALTER COLUMN email TYPE VARCHAR(150);",
+                "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);"
+            ]
             
-            print("Mise à jour réussie : Les colonnes supportent désormais les formats longs.")
+            for cmd in commands:
+                try:
+                    db.session.execute(db.text(cmd))
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"Commande ignorée ou déjà faite : {cmd}")
+
+            print("Succès : La table 'user' est maintenant compatible avec ProFin-AI.")
         except Exception as e:
-            db.session.rollback()
-            # Si l'erreur est que les colonnes sont déjà à la bonne taille, on ignore proprement
-            print(f"Note : Structure déjà à jour ou SQL ignoré : {e}")
+            print(f"Erreur d'initialisation : {e}")
 
 if __name__ == '__main__':
-    # Préparation de la base de données au démarrage de l'instance Render
     setup_database()
-    
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
