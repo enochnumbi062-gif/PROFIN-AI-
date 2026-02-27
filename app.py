@@ -35,11 +35,10 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES DE DONNÉES (ALIGNÉS SUR DORKNET XCHANGE) ---
+# --- MODÈLES DE DONNÉES ---
 class User(db.Model):
-    # CHANGEMENT CRITIQUE : On renomme la table pour forcer Render à créer 
-    # une structure neuve avec la colonne 'nom' incluse.
-    __tablename__ = 'utilisateurs' 
+    # On garde 'user' pour que la route de réparation puisse modifier la table existante
+    __tablename__ = 'user' 
     
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(150), nullable=False) 
@@ -47,7 +46,6 @@ class User(db.Model):
     password = db.Column(db.String(500), nullable=False) 
     otp_secret = db.Column(db.String(64)) 
     
-    # Flask-Login requirements
     def is_authenticated(self): return True
     def is_active(self): return True
     def is_anonymous(self): return False
@@ -58,11 +56,26 @@ class BusinessPlan(db.Model):
     score_bancabilite = db.Column(db.Float)
     analyse_ia = db.Column(db.Text) 
     date_scan = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# --- ROUTE DE RÉPARATION CHIRURGICALE ---
+@app.route('/force-repair-db')
+def force_repair_db():
+    try:
+        from sqlalchemy import text
+        # Ajout des colonnes si elles manquent dans la table existante
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS nom VARCHAR(150);'))
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);'))
+        db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);'))
+        db.session.commit()
+        return "<h1>✅ RÉPARATION RÉUSSIE !</h1><p>La table 'user' est à jour. Testez l'inscription maintenant.</p>"
+    except Exception as e:
+        db.session.rollback()
+        return f"<h1>❌ ÉCHEC</h1><p>Erreur : {str(e)}</p>"
 
 # --- ROUTES D'AUTHENTIFICATION ---
 @app.route('/')
@@ -73,32 +86,20 @@ def index():
 def register():
     if request.method == 'POST':
         try:
-            nom_input = request.form.get('nom')
-            email_input = request.form.get('email')
-            password_input = request.form.get('password')
-            
-            # Vérification si l'utilisateur existe déjà dans la NOUVELLE table
-            if User.query.filter_by(email=email_input).first():
-                flash('Cet email est déjà utilisé.', 'danger')
-                return redirect(url_for('register'))
-            
-            # Utilisation de pbkdf2:sha256 pour la compatibilité Render
-            hashed_pw = generate_password_hash(password_input, method='pbkdf2:sha256')
-            
+            hashed_pw = generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')
             new_user = User(
-                nom=nom_input, 
-                email=email_input, 
+                nom=request.form.get('nom'), 
+                email=request.form.get('email'), 
                 password=hashed_pw, 
                 otp_secret=pyotp.random_base32()
             )
-            
             db.session.add(new_user)
             db.session.commit()
-            flash('Compte créé avec succès ! Connectez-vous.', 'success')
+            flash('Succès ! Connectez-vous.', 'success')
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
-            flash(f"Erreur d'inscription (Vérifiez la table utilisateurs) : {str(e)}", 'danger')
+            flash(f"Erreur : {str(e)}", 'danger')
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -106,28 +107,22 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form.get('email')).first()
         if user and check_password_hash(user.password, request.form.get('password')):
-            # Envoi du code 2FA
             totp = pyotp.TOTP(user.otp_secret, interval=300)
-            msg = Message('Votre code DorkNet Xchange', sender=app.config['MAIL_USERNAME'], recipients=[user.email])
-            msg.body = f"Bonjour {user.nom}, votre code de vérification est : {totp.now()}"
+            msg = Message('Code DorkNet', sender=app.config['MAIL_USERNAME'], recipients=[user.email])
+            msg.body = f"Code : {totp.now()}"
             mail.send(msg)
-            
             session['temp_user_id'] = user.id
             return redirect(url_for('verify_2fa'))
-        flash('Identifiants incorrects.', 'danger')
     return render_template('login.html')
 
 @app.route('/verify-2fa', methods=['GET', 'POST'])
 def verify_2fa():
-    if 'temp_user_id' not in session:
-        return redirect(url_for('login'))
+    if 'temp_user_id' not in session: return redirect(url_for('login'))
     if request.method == 'POST':
         user = User.query.get(session['temp_user_id'])
         if pyotp.TOTP(user.otp_secret, interval=300).verify(request.form.get('otp')):
             login_user(user)
-            session.pop('temp_user_id')
             return redirect(url_for('dashboard'))
-        flash('Code OTP invalide ou expiré.', 'danger')
     return render_template('verify_2fa.html')
 
 @app.route('/dashboard')
@@ -135,33 +130,9 @@ def verify_2fa():
 def dashboard():
     return render_template('dashboard.html', name=current_user.nom)
 
-@app.route('/upload', methods=['POST'])
-@login_required
-def upload_file():
-    file = request.files.get('business_plan')
-    if file:
-        score, feedback = ia.analyser_pdf(file)
-        new_scan = BusinessPlan(score_bancabilite=score, analyse_ia=feedback, user_id=current_user.id)
-        db.session.add(new_scan)
-        db.session.commit()
-        return render_template('dashboard.html', name=current_user.nom, score=score, feedback=feedback)
-    return redirect(url_for('dashboard'))
-
-@app.route('/logout')
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-# --- INITIALISATION ET LANCEMENT ---
+# --- LANCEMENT ---
 if __name__ == '__main__':
     with app.app_context():
-        try:
-            # Cette commande va créer la table 'utilisateurs' car elle n'existe pas encore.
-            # Elle contiendra nativement la colonne 'nom'.
-            db.create_all()
-            print("🚀 Table 'utilisateurs' créée ou déjà présente. DorkNet est prêt.")
-        except Exception as e:
-            print(f"⚠️ Erreur lors de la création de la table : {e}")
-
+        db.create_all()
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
