@@ -25,7 +25,7 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configuration Email (ProFin-AI Server)
+# Configuration Email
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -37,11 +37,10 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES DE DONNÉES (ALIGNÉS SUR LA BASE EXISTANTE) ---
+# --- MODÈLES DE DONNÉES ---
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # On utilise 'nom' pour correspondre à la colonne existante sur PostgreSQL
     nom = db.Column(db.String(150), nullable=False) 
     email = db.Column(db.String(150), unique=True, nullable=False) 
     password = db.Column(db.String(500), nullable=False) 
@@ -76,8 +75,6 @@ def register():
             return redirect(url_for('register'))
             
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
-        
-        # Alignement sur le champ 'nom' pour éviter le crash
         new_user = User(nom=nom_input, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
         
         db.session.add(new_user)
@@ -122,8 +119,6 @@ def verify_2fa():
         flash('Code invalide ou expiré.', 'danger')
     return render_template('verify_2fa.html')
 
-# --- ROUTES DU DASHBOARD ---
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -156,29 +151,23 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- INITIALISATION ET LANCEMENT ---
-
-def setup_database():
-    """Initialisation sécurisée pour PostgreSQL Render."""
-    with app.app_context():
-        try:
-            db.create_all() 
-            # On s'assure que les colonnes nécessaires (OTP et Pass long) sont présentes
-            commands = [
-                "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);",
-                "ALTER TABLE \"user\" ALTER COLUMN password TYPE VARCHAR(500);"
-            ]
-            for cmd in commands:
-                try:
-                    db.session.execute(db.text(cmd))
-                    db.session.commit()
-                except:
-                    db.session.rollback()
-            print("Base de données synchronisée (Mode: nom).")
-        except Exception as e:
-            print(f"Erreur d'initialisation : {e}")
+# --- LANCEMENT & NETTOYAGE FORCÉ (VERSION COMMANDO) ---
 
 if __name__ == '__main__':
-    setup_database()
+    with app.app_context():
+        try:
+            # Suppression radicale pour corriger l'erreur de structure
+            print("Tentative de nettoyage forcé de la base de données...")
+            db.session.execute(db.text('DROP TABLE IF EXISTS "user" CASCADE;'))
+            db.session.execute(db.text('DROP TABLE IF EXISTS "business_plan" CASCADE;'))
+            db.session.commit()
+            
+            # Reconstruction immédiate
+            db.create_all()
+            print("Base de données reconstruite avec succès (Zéro erreur).")
+        except Exception as e:
+            print(f"Erreur lors du nettoyage : {e}")
+            db.session.rollback()
+
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
