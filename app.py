@@ -37,19 +37,20 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES DE DONNÉES ---
+# --- MODÈLES DE DONNÉES SÉCURISÉS ---
+# Longueurs élargies pour éviter les erreurs "Data too long" lors du hachage
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    nom_complet = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    otp_secret = db.Column(db.String(32)) 
+    nom_complet = db.Column(db.String(150), nullable=False) 
+    email = db.Column(db.String(150), unique=True, nullable=False) 
+    password = db.Column(db.String(500), nullable=False) # Supporte les hachages longs (argon2, pbkdf2, etc.)
+    otp_secret = db.Column(db.String(64)) 
     
 class BusinessPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     score_bancabilite = db.Column(db.Float)
-    analyse_ia = db.Column(db.Text)
+    analyse_ia = db.Column(db.Text) 
     date_scan = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
@@ -74,6 +75,7 @@ def register():
             flash('Cet email est déjà utilisé.', 'danger')
             return redirect(url_for('register'))
             
+        # Hachage du mot de passe (génère une chaîne d'environ 90-120 caractères)
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = User(nom_complet=nom, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
         
@@ -119,7 +121,7 @@ def verify_2fa():
         flash('Code invalide ou expiré.', 'danger')
     return render_template('verify_2fa.html')
 
-# --- ROUTES DU SALON PRINCIPAL (DASHBOARD) ---
+# --- ROUTES DU DASHBOARD ---
 
 @app.route('/dashboard')
 @login_required
@@ -156,19 +158,16 @@ def logout():
 # --- INITIALISATION ET LANCEMENT ---
 
 def setup_database():
-    """Force la création des tables et des relations avant le lancement."""
+    """Prépare la base de données PostgreSQL de manière forcée au démarrage."""
     with app.app_context():
         try:
             print("Vérification de la base de données DorkNet...")
             db.create_all()
-            print("Base de données opérationnelle (Tables créées ou déjà présentes).")
+            print("Base de données opérationnelle avec modèles sécurisés.")
         except Exception as e:
-            print(f"Erreur d'initialisation de la base : {e}")
+            print(f"Erreur d'initialisation : {e}")
 
 if __name__ == '__main__':
-    # Initialisation forcée pour contourner l'absence de Shell sur Render Free
     setup_database()
-    
-    # Configuration du port dynamique pour Render
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
