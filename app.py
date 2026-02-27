@@ -23,7 +23,7 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configuration Email (Gardée pour le futur, mais contournée pour l'instant)
+# Configuration Email (Contournée via Mode Diagnostic pour éviter l'erreur 500)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -60,19 +60,6 @@ class BusinessPlan(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- ROUTE BULLDOZER (Toujours là au cas où) ---
-@app.route('/bulldozer-repair')
-def bulldozer_repair():
-    try:
-        from sqlalchemy import text
-        db.session.execute(text('DROP TABLE IF EXISTS "user" CASCADE;'))
-        db.session.commit()
-        db.create_all()
-        return "<h1>🚀 BULLDOZER RÉUSSI !</h1>"
-    except Exception as e:
-        db.session.rollback()
-        return f"<h1>❌ ÉCHEC</h1><p>{str(e)}</p>"
-
 # --- ROUTES D'AUTHENTIFICATION ---
 @app.route('/')
 def index():
@@ -103,7 +90,7 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form.get('email')).first()
         if user and check_password_hash(user.password, request.form.get('password')):
-            # CRÉATION DU CODE SANS ENVOI DE MAIL (POUR ÉVITER LE CRASH LOG 54168.png)
+            # Le code est généré et stocké en session pour éviter le crash mail (Log 54168.png)
             totp = pyotp.TOTP(user.otp_secret, interval=300)
             code = totp.now()
             session['temp_user_id'] = user.id
@@ -130,6 +117,7 @@ def verify_2fa():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Affiche le nom de l'utilisateur sur le Dashboard (Log 54185.png)
     return render_template('dashboard.html', name=current_user.nom)
 
 @app.route('/logout')
