@@ -1,6 +1,5 @@
 import os
 import pyotp
-import io
 from flask import Flask, render_template, redirect, url_for, request, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -17,7 +16,6 @@ ia = ProfinIA()
 # --- CONFIGURATION (Render & Sécurité) ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB8*pT1&jW5^hG0%sX3+cV6=yU9_bN2[zM5]qW8{kP1}fL4|rS7')
 
-# Correction URL SQLAlchemy pour PostgreSQL Render
 uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
@@ -37,8 +35,7 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES DE DONNÉES ---
-
+# --- MODÈLES DE DONNÉES (ALIGNÉS SUR L'OBJECTIF DORKNET) ---
 class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -59,7 +56,6 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 # --- ROUTES D'AUTHENTIFICATION ---
-
 @app.route('/')
 def index():
     return redirect(url_for('login'))
@@ -67,40 +63,36 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        nom_input = request.form.get('nom')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        if User.query.filter_by(email=email).first():
-            flash('Cet email est déjà utilisé.', 'danger')
-            return redirect(url_for('register'))
+        try:
+            nom_input = request.form.get('nom')
+            email = request.form.get('email')
+            password = request.form.get('password')
             
-        # Hachage sécurisé
-        hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
-        
-        new_user = User(nom=nom_input, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
-        
-        db.session.add(new_user)
-        db.session.commit()
-        flash('Compte créé ! Connectez-vous.', 'success')
-        return redirect(url_for('login'))
+            if User.query.filter_by(email=email).first():
+                flash('Cet email est déjà utilisé.', 'danger')
+                return redirect(url_for('register'))
+            
+            hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
+            new_user = User(nom=nom_input, email=email, password=hashed_pw, otp_secret=pyotp.random_base32())
+            
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Compte créé ! Connectez-vous.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Erreur d'inscription : {str(e)}", 'danger')
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        user = User.query.filter_by(email=email).first()
-        
-        if user and check_password_hash(user.password, password):
+        user = User.query.filter_by(email=request.form.get('email')).first()
+        if user and check_password_hash(user.password, request.form.get('password')):
             totp = pyotp.TOTP(user.otp_secret, interval=300)
-            otp_code = totp.now()
-            
             msg = Message('Votre code ProFin-AI', sender=app.config['MAIL_USERNAME'], recipients=[user.email])
-            msg.body = f"Bonjour {user.nom}, votre code de sécurité est : {otp_code}"
+            msg.body = f"Bonjour {user.nom}, votre code est : {totp.now()}"
             mail.send(msg)
-            
             session['temp_user_id'] = user.id
             return redirect(url_for('verify_2fa'))
         flash('Identifiants incorrects.', 'danger')
@@ -111,15 +103,12 @@ def verify_2fa():
     if 'temp_user_id' not in session:
         return redirect(url_for('login'))
     if request.method == 'POST':
-        otp_input = request.form.get('otp')
         user = User.query.get(session['temp_user_id'])
-        totp = pyotp.TOTP(user.otp_secret, interval=300)
-        
-        if totp.verify(otp_input):
+        if pyotp.TOTP(user.otp_secret, interval=300).verify(request.form.get('otp')):
             login_user(user)
             session.pop('temp_user_id')
             return redirect(url_for('dashboard'))
-        flash('Code invalide ou expiré.', 'danger')
+        flash('Code invalide.', 'danger')
     return render_template('verify_2fa.html')
 
 @app.route('/dashboard')
@@ -144,39 +133,31 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- INITIALISATION HYBRIDE (COMMANDO + RÉPARATION EXPERTE) ---
-
+# --- LOGIQUE DE LANCEMENT : LE CONTOURNEMENT ABSOLU ---
 if __name__ == '__main__':
     with app.app_context():
         try:
-            # PHASE 1 : MODE COMMANDO (Nettoyage forcé des tables corrompues)
-            print("Action Commando : Suppression des tables fantômes...")
-            db.session.execute(db.text('DROP TABLE IF EXISTS business_plan CASCADE;'))
-            db.session.execute(db.text('DROP TABLE IF EXISTS "user" CASCADE;'))
-            db.session.commit()
-
-            # PHASE 2 : RECONSTRUCTION
+            # 1. On force la création des tables de base
             db.create_all()
             
-            # PHASE 3 : CHIRURGIE EXPERTE (Optimisation password et colonnes)
-            sql_commands = [
-                'ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);',
+            # 2. Injection SQL Directe pour corriger les colonnes manquantes
+            # C'est ici qu'on règle l'erreur UndefinedColumn pour de bon.
+            sql_queries = [
                 'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS nom VARCHAR(150);',
-                'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);'
+                'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);',
+                'ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);'
             ]
             
-            for cmd in sql_commands:
+            for query in sql_queries:
                 try:
-                    db.session.execute(db.text(cmd))
+                    db.session.execute(db.text(query))
                     db.session.commit()
+                    print(f"Injection réussie : {query[:30]}...")
                 except Exception:
                     db.session.rollback()
-
-            print("DorkNet Xchange est opérationnel et synchronisé (Password: 500).")
             
+            print("DorkNet Xchange est synchronisé et prêt.")
         except Exception as e:
-            print(f"Erreur d'initialisation : {e}")
-            db.session.rollback()
+            print(f"Erreur fatale initialisation : {e}")
 
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
