@@ -6,4 +6,5 @@ pyotp
 pypdf
 fpdf
 stripe
+psycopg2-binary
 gunicorn
