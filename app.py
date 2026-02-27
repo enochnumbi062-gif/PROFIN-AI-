@@ -15,13 +15,11 @@ app = Flask(__name__)
 ia = ProfinIA()
 
 # --- CONFIGURATION (Render & Sécurité) ---
-# Utilisation de la clé secrète complexe que nous avons générée
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB8*pT1&jW5^hG0%sX3+cV6=yU9_bN2[zM5]qW8{kP1}fL4|rS7')
 
-# --- FUSION DU CORRECTEUR DE DATABASE_URL ---
+# Correction automatique de l'URL pour SQLAlchemy (PostgreSQL Render)
 uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
 if uri and uri.startswith("postgres://"):
-    # Correction automatique pour SQLAlchemy exigée par Render
     uri = uri.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
@@ -63,7 +61,6 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-    # Redirection directe vers le login pour éviter l'erreur de page blanche
     return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -142,7 +139,6 @@ def upload_file():
 
     if file:
         score, feedback = ia.analyser_pdf(file)
-        
         new_scan = BusinessPlan(score_bancabilite=score, analyse_ia=feedback, user_id=current_user.id)
         db.session.add(new_scan)
         db.session.commit()
@@ -155,10 +151,24 @@ def upload_file():
 @app.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('login')) # Retour au login après déconnexion
+    return redirect(url_for('login'))
+
+# --- INITIALISATION ET LANCEMENT ---
+
+def setup_database():
+    """Force la création des tables et des relations avant le lancement."""
+    with app.app_context():
+        try:
+            print("Vérification de la base de données DorkNet...")
+            db.create_all()
+            print("Base de données opérationnelle (Tables créées ou déjà présentes).")
+        except Exception as e:
+            print(f"Erreur d'initialisation de la base : {e}")
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    # Initialisation forcée pour contourner l'absence de Shell sur Render Free
+    setup_database()
+    
+    # Configuration du port dynamique pour Render
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
