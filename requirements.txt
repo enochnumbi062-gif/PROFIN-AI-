@@ -5,3 +5,5 @@ psycopg2-binary
 gunicorn
 flask-mail
 pyotp
+pdfminer.six
+python-docx
