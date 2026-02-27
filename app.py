@@ -35,7 +35,7 @@ mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- MODÈLES DE DONNÉES (ALIGNÉS SUR L'OBJECTIF DORKNET) ---
+# --- MODÈLES DE DONNÉES ---
 class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -81,6 +81,7 @@ def register():
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
+            # Capture de l'erreur précise pour le debug
             flash(f"Erreur d'inscription : {str(e)}", 'danger')
     return render_template('register.html')
 
@@ -133,31 +134,37 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- LOGIQUE DE LANCEMENT : LE CONTOURNEMENT ABSOLU ---
-if __name__ == '__main__':
+# --- BLOC DE BRUTE FORCE SQL ---
+def force_database_sync():
     with app.app_context():
         try:
-            # 1. On force la création des tables de base
+            print("🚀 Début de l'injection SQL forcée (Bélier)...")
+            # 1. On force la création des tables manquantes
             db.create_all()
             
-            # 2. Injection SQL Directe pour corriger les colonnes manquantes
-            # C'est ici qu'on règle l'erreur UndefinedColumn pour de bon.
-            sql_queries = [
+            # 2. Injection brute pour forcer l'alignement de la structure
+            sql_brute = [
                 'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS nom VARCHAR(150);',
                 'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS otp_secret VARCHAR(64);',
-                'ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);'
+                'ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(500);',
+                'ALTER TABLE "user" ALTER COLUMN nom SET NOT NULL;'
             ]
             
-            for query in sql_queries:
+            for cmd in sql_brute:
                 try:
-                    db.session.execute(db.text(query))
+                    db.session.execute(db.text(cmd))
                     db.session.commit()
-                    print(f"Injection réussie : {query[:30]}...")
+                    print(f"✅ Succès : {cmd[:40]}...")
                 except Exception:
                     db.session.rollback()
-            
-            print("DorkNet Xchange est synchronisé et prêt.")
-        except Exception as e:
-            print(f"Erreur fatale initialisation : {e}")
+                    print(f"⚠️ Ignoré (Déjà en place ou restriction) : {cmd[:20]}...")
 
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+            print("🎯 La base de données a été synchronisée par Brute Force.")
+        except Exception as e:
+            print(f"❌ Échec critique de l'injection : {e}")
+
+# --- LANCEMENT FINAL ---
+if __name__ == '__main__':
+    force_database_sync() 
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
