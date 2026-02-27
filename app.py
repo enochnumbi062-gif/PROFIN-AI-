@@ -15,13 +15,13 @@ app = Flask(__name__)
 ia = ProfinIA()
 
 # --- CONFIGURATION (Render & Sécurité) ---
-# Utilisation de la clé secrète complexe
+# Utilisation de la clé secrète complexe que nous avons générée
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'PfAI_9x$2KzL#vQ7!mR4@nB8*pT1&jW5^hG0%sX3+cV6=yU9_bN2[zM5]qW8{kP1}fL4|rS7')
 
 # --- FUSION DU CORRECTEUR DE DATABASE_URL ---
 uri = os.environ.get('DATABASE_URL', 'sqlite:///profin_ai.db')
 if uri and uri.startswith("postgres://"):
-    # SQLAlchemy exige 'postgresql://' au lieu de 'postgres://' utilisé par Render
+    # Correction automatique pour SQLAlchemy exigée par Render
     uri = uri.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
@@ -63,7 +63,8 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Redirection directe vers le login pour éviter l'erreur de page blanche
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -154,11 +155,10 @@ def upload_file():
 @app.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('index'))
+    return redirect(url_for('login')) # Retour au login après déconnexion
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    # Utilisation du port configuré par Render
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
