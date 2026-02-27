@@ -64,7 +64,7 @@ class BusinessPlan(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- UTILITAIRE : GÉNÉRATION DU RAPPORT PDF ---
+# --- UTILITAIRES (PDF & EMAILS) ---
 def generate_pdf_report(plan, owner_name):
     if plan.score_bancabilite >= 80:
         statut, conseils = "EXCELLENT", "1. Prêt pour levée de fonds.\n2. Préparez la Due Diligence.\n3. Optimisez le pitch deck."
@@ -96,6 +96,33 @@ def generate_pdf_report(plan, owner_name):
     pdf.set_font("Arial", size=11); pdf.multi_cell(190, 8, conseils)
     
     return pdf.output(dest='S').encode('latin-1', 'ignore')
+
+def send_thank_you_email(user_email, user_nom):
+    msg = Message(
+        subject="Bienvenue dans l'aventure DorkNet Xchange 🚀",
+        sender=app.config['MAIL_USERNAME'],
+        recipients=[user_email]
+    )
+    msg.body = f"""
+Bonjour {user_nom},
+
+C'est un honneur pour moi de vous remercier personnellement pour votre généreux soutien à DorkNet Xchange.
+
+Votre contribution nous permet de rester indépendants et de continuer à offrir aux entrepreneurs les outils des plus grandes banques d'affaires.
+
+Grâce à vous, nous bâtissons l'avenir de la finance.
+
+Bien à vous,
+
+Dr Enoch Numbi
+Fondateur, DorkNet Xchange
+    """
+    try:
+        mail.send(msg)
+        return True
+    except Exception as e:
+        print(f"Erreur d'envoi : {e}")
+        return False
 
 # --- ROUTES AUTHENTIFICATION ---
 @app.route('/')
@@ -160,7 +187,7 @@ def mes_documents():
 def donner():
     return render_template('donner.html')
 
-# --- ROUTES ACTIONS TECHNIQUES ---
+# --- ACTIONS TECHNIQUES ---
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload_file():
@@ -214,6 +241,17 @@ def delete_plan(plan_id):
 @app.route('/logout')
 def logout():
     logout_user(); return redirect(url_for('login'))
+
+# --- TEST REMERCIEMENT ---
+@app.route('/test-thank-you')
+@login_required
+def test_thank_you():
+    success = send_thank_you_email(current_user.email, current_user.nom)
+    if success:
+        flash("Email de remerciement envoyé (test) !", "success")
+    else:
+        flash("Erreur lors de l'envoi de l'email.", "danger")
+    return redirect(url_for('donner'))
 
 if __name__ == '__main__':
     with app.app_context(): db.create_all()
